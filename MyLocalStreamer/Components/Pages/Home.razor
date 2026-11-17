@@ -1,0 +1,491 @@
+@page "/"
+@implements IAsyncDisposable
+@inject IVideoLibrary Library
+@inject IOptions<MediaOptions> Options
+@inject IJSRuntime JS
+
+<PageTitle>@(currentVideo is null ? "Local Streamer" : $"{currentVideo.FileName} · Local Streamer")</PageTitle>
+
+<div class="site @(isTheaterMode ? "theater-mode" : "")">
+
+    @if (toast is not null)
+    {
+        <div class="toast-notification" role="status">@toast</div>
+    }
+
+    <!-- SITE HEADER -->
+    <header class="topbar">
+        <a class="brand" href="/" aria-label="Local Streamer home">
+            <span class="brand-mark">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5v17l14-8.5z" /></svg>
+            </span>
+            <span class="brand-name">Local Streamer</span>
+        </a>
+
+        <label class="search">
+            <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+            <input type="search"
+                   placeholder="Search your library"
+                   aria-label="Search your library"
+                   @bind="SearchQuery"
+                   @bind:event="oninput"
+                   @bind:after="OnSearchChanged" />
+        </label>
+
+        <div class="topbar-actions">
+            <button class="icon-btn" @onclick="Rescan" title="Rescan library folder" aria-label="Rescan library folder">
+                <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7" /><path d="M20 4v7h-7" /></svg>
+            </button>
+            <button class="icon-btn" @onclick="ToggleTheme" title="Switch to @(isDarkMode ? "light" : "dark") theme" aria-label="Toggle theme">
+                @if (isDarkMode)
+                {
+                    <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></svg>
+                }
+                else
+                {
+                    <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" /></svg>
+                }
+            </button>
+        </div>
+    </header>
+
+    <main class="watch-layout">
+
+        <!-- PLAYER + MORE VIDEOS -->
+        <section class="stage">
+            @if (currentVideo is { } cv)
+            {
+                <div class="video-container" id="videoContainer">
+                    @* @key recreates the element per video so the watch-progress tracker starts fresh. *@
+                    <video id="player"
+                           @key="cv.Id"
+                           src="@cv.StreamUrl"
+                           data-video-id="@cv.Id"
+                           controls
+                           autoplay
+                           preload="auto"
+                           @onended="HandleVideoEnded">
+                    </video>
+                </div>
+
+                <div class="now-playing">
+                    <div class="np-text">
+                        <h1 class="np-title">@cv.FileName</h1>
+                        <div class="chips">
+                            <span class="chip">@FormatSize(cv.FileSize)</span>
+                            <span class="chip @(cv.IsWatched ? "chip-ok" : "chip-new")">@(cv.IsWatched ? "Watched" : "New")</span>
+                        </div>
+                    </div>
+
+                    <div class="np-actions">
+                        <button class="btn" @onclick="CaptureScreenshot" title="Save a screenshot (S)">
+                            <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z" /><circle cx="12" cy="13" r="3.5" /></svg>
+                            Screenshot
+                        </button>
+
+                        <button class="btn" @onclick="ToggleTheaterMode" title="Theater mode (T)">
+                            <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="2" /></svg>
+                            @(isTheaterMode ? "Default view" : "Theater")
+                        </button>
+
+                        <button class="btn" @onclick="PlayRandomNext" title="Play a random video (N)">
+                            <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h3c5 0 6 10 11 10h4M3 17h3c1.5 0 2.6-.8 3.6-2M14 8c1-.8 2-1 3-1h4" /><path d="m18 4 3 3-3 3M18 14l3 3-3 3" /></svg>
+                            Shuffle
+                        </button>
+
+                        <button class="btn btn-primary" @onclick="SelectAndNext" title="Move this video to the Selected folder and play another">
+                            <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z" /></svg>
+                            Select &amp; next
+                        </button>
+                    </div>
+                </div>
+
+                <details class="shortcuts">
+                    <summary>Keyboard shortcuts</summary>
+                    <div class="shortcut-list">
+                        <span><kbd>Space</kbd>Play / pause</span>
+                        <span><kbd>←</kbd><kbd>→</kbd>Seek 5 seconds</span>
+                        <span><kbd>F</kbd>Fullscreen</span>
+                        <span><kbd>M</kbd>Mute</span>
+                        <span><kbd>N</kbd>Shuffle</span>
+                        <span><kbd>T</kbd>Theater</span>
+                        <span><kbd>S</kbd>Screenshot</span>
+                    </div>
+                </details>
+
+                @* Everything beyond the first SidebarCount videos overflows into a grid under the player. *@
+                @if (filtered.Count > SidebarCount)
+                {
+                    <section class="more-videos">
+                        <h2>More videos <span>@(filtered.Count - SidebarCount)</span></h2>
+
+                        <div class="video-grid">
+                            @foreach (var video in filtered.Skip(SidebarCount).Take(gridLimit))
+                            {
+                                @RenderThumb(video, "grid-card")
+                            }
+                        </div>
+
+                        @if (filtered.Count - SidebarCount > gridLimit)
+                        {
+                            <button class="btn load-more" @onclick="ShowMore">
+                                Show more (@(filtered.Count - SidebarCount - gridLimit) left)
+                            </button>
+                        }
+                    </section>
+                }
+            }
+            else
+            {
+                <div class="empty-state">
+                    <h2>@(videos.Count == 0 ? "Your library is empty" : "Nothing to play")</h2>
+                    <p>Add <code>.mp4</code>, <code>.mkv</code> or <code>.webm</code> files to <code>@Options.Value.LibraryPath</code>, then rescan.</p>
+                    <button class="btn btn-primary" @onclick="Rescan">Rescan library</button>
+                </div>
+            }
+        </section>
+
+        <!-- LIBRARY PANEL: first SidebarCount videos -->
+        <aside class="upnext" aria-label="Library">
+            <div class="upnext-head">
+                <h2>Library <span>@videos.Count</span></h2>
+
+                <div class="tabs" role="tablist">
+                    @foreach (var (key, label) in Filters)
+                    {
+                        <button class="tab @(watchFilter == key ? "is-active" : "")"
+                                role="tab"
+                                aria-selected="@(watchFilter == key ? "true" : "false")"
+                                @onclick="() => SetFilter(key)">
+                            @label <span class="tab-count">@CountFor(key)</span>
+                        </button>
+                    }
+                </div>
+            </div>
+
+            <div class="upnext-list">
+                @if (filtered.Count == 0)
+                {
+                    <p class="list-note">No videos match. Clear the search or change the tab.</p>
+                }
+                else
+                {
+                    @foreach (var video in filtered.Take(SidebarCount))
+                    {
+                        @RenderThumb(video, "list-card")
+                    }
+
+                    @if (filtered.Count > SidebarCount)
+                    {
+                        <p class="list-note">@(filtered.Count - SidebarCount) more under the player</p>
+                    }
+                }
+            </div>
+        </aside>
+    </main>
+
+    <footer class="site-footer">
+        <span>@WatchedCount of @videos.Count watched</span>
+        <span>Library folder: <code>@Options.Value.LibraryPath</code></span>
+    </footer>
+</div>
+
+@code {
+    /// <summary>How many videos the sidebar shows; the rest overflow into the grid under the player.</summary>
+    private const int SidebarCount = 8;
+
+    /// <summary>The overflow grid renders this many cards at a time (then "Show more").</summary>
+    private const int GridPageSize = 48;
+
+    private enum WatchFilter { All, Unwatched, Watched }
+
+    private static readonly (WatchFilter Key, string Label)[] Filters =
+    [
+        (WatchFilter.All, "All"),
+        (WatchFilter.Unwatched, "Unwatched"),
+        (WatchFilter.Watched, "Watched"),
+    ];
+
+    private List<VideoItem> videos = [];
+    private List<VideoItem> filtered = [];
+    private VideoItem? currentVideo;
+
+    private string searchQuery = "";
+    private WatchFilter watchFilter = WatchFilter.All;
+    private int gridLimit = GridPageSize;
+    private bool isTheaterMode;
+    private bool isDarkMode = true;
+    private string? toast;
+
+    private IJSObjectReference? module;
+    private DotNetObjectReference<Home>? selfRef;
+    private CancellationTokenSource? toastCts;
+
+    private string SearchQuery
+    {
+        get => searchQuery;
+        set => searchQuery = value;
+    }
+
+    private int WatchedCount => videos.Count(v => v.IsWatched);
+
+    private int CountFor(WatchFilter filter) => filter switch
+    {
+        WatchFilter.Unwatched => videos.Count - WatchedCount,
+        WatchFilter.Watched => WatchedCount,
+        _ => videos.Count
+    };
+
+    /// <summary>
+    /// One thumbnail card, used by both the sidebar list and the overflow grid.
+    /// The &lt;video&gt; only gets its src when scrolled into view (see streamer.js), then
+    /// seeks to a random point so the card shows a frame from somewhere in the video.
+    /// </summary>
+    private RenderFragment RenderThumb(VideoItem video, string layoutClass) => @<div class="thumbnail-card @layoutClass @(currentVideo?.Id == video.Id ? "active" : "") @(video.IsWatched ? "watched" : "")"
+         @key="video.Id"
+         @onclick="() => SelectVideo(video)">
+
+        <div class="thumb-media-container">
+            <video class="thumb-video"
+                   data-video-id="@video.Id"
+                   data-src="@video.StreamUrl"
+                   muted loop playsinline preload="metadata"></video>
+            @if (video.IsWatched)
+            {
+                <span class="watched-badge">Watched</span>
+            }
+        </div>
+
+        <div class="thumb-details">
+            <span class="thumb-title" title="@video.FileName">@video.FileName</span>
+            @if (currentVideo?.Id == video.Id)
+            {
+                <span class="thumb-meta is-playing">Now playing</span>
+            }
+            else
+            {
+                <span class="thumb-meta">@FormatSize(video.FileSize)</span>
+            }
+        </div>
+    </div>;
+
+    protected override void OnInitialized()
+    {
+        videos = [.. Library.GetVideos(rescan: true)];
+        ApplyFilter();
+        currentVideo = videos.FirstOrDefault();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        module = await JS.InvokeAsync<IJSObjectReference>("import", "./" + Assets["js/streamer.js"]);
+        selfRef = DotNetObjectReference.Create(this);
+        await module.InvokeVoidAsync("init", selfRef, Options.Value.WatchedAfterSeconds);
+
+        var theme = await module.InvokeAsync<string>("getTheme");
+        if (theme == "light")
+        {
+            isDarkMode = false;
+            StateHasChanged();
+        }
+    }
+
+    // ------------------------------------------------------------ library / filtering
+
+    private void ApplyFilter()
+    {
+        IEnumerable<VideoItem> query = videos;
+
+        if (!string.IsNullOrWhiteSpace(searchQuery))
+            query = query.Where(v => v.FileName.Contains(searchQuery.Trim(), StringComparison.OrdinalIgnoreCase));
+
+        query = watchFilter switch
+        {
+            WatchFilter.Unwatched => query.Where(v => !v.IsWatched),
+            WatchFilter.Watched => query.Where(v => v.IsWatched),
+            _ => query
+        };
+
+        filtered = query.ToList();
+    }
+
+    private void OnSearchChanged()
+    {
+        gridLimit = GridPageSize;
+        ApplyFilter();
+    }
+
+    private void SetFilter(WatchFilter filter)
+    {
+        watchFilter = filter;
+        gridLimit = GridPageSize;
+        ApplyFilter();
+    }
+
+    private void ShowMore() => gridLimit += GridPageSize;
+
+    private void Rescan()
+    {
+        videos = [.. Library.GetVideos(rescan: true)];
+        ApplyFilter();
+
+        // Keep playing the current video if it still exists, otherwise fall back to the first one.
+        currentVideo = currentVideo is null
+            ? videos.FirstOrDefault()
+            : videos.FirstOrDefault(v => v.Id == currentVideo.Id) ?? videos.FirstOrDefault();
+
+        _ = ShowToastAsync($"Library rescanned: {videos.Count} video{(videos.Count == 1 ? "" : "s")}");
+    }
+
+    // ------------------------------------------------------------ playback
+
+    private async Task SelectVideo(VideoItem video)
+    {
+        currentVideo = video;
+
+        // Cards in the overflow grid sit below the fold - bring the player back into view.
+        if (module is not null)
+            await module.InvokeVoidAsync("scrollToPlayer");
+    }
+
+    private async Task HandleVideoEnded()
+    {
+        if (currentVideo is not null)
+            await MarkWatched(currentVideo.Id);
+
+        PlayRandomNext();
+    }
+
+    private void PlayRandomNext()
+    {
+        var next = Library.GetRandom(currentVideo?.Id);
+        if (next is not null)
+            currentVideo = next;
+    }
+
+    private async Task SelectAndNext()
+    {
+        if (currentVideo is null) return;
+
+        var moved = currentVideo;
+        if (!await Library.MoveToSelectedAsync(moved.Id))
+        {
+            _ = ShowToastAsync("Couldn't move the file. It may be in use.");
+            return;
+        }
+
+        videos.Remove(moved);
+        ApplyFilter();
+        currentVideo = Library.GetRandom();
+        _ = ShowToastAsync($"Moved to {Options.Value.SelectedFolderName}");
+    }
+
+    private async Task MarkWatched(string videoId)
+    {
+        await Library.MarkWatchedAsync(videoId);
+
+        // This page may hold a different instance than the library after another tab rescanned.
+        var local = videos.FirstOrDefault(v => v.Id == videoId);
+        if (local is not null) local.IsWatched = true;
+    }
+
+    private void ToggleTheaterMode() => isTheaterMode = !isTheaterMode;
+
+    private async Task ToggleTheme()
+    {
+        isDarkMode = !isDarkMode;
+        if (module is not null)
+            await module.InvokeVoidAsync("setTheme", isDarkMode ? "dark" : "light");
+    }
+
+    private async Task CaptureScreenshot()
+    {
+        if (currentVideo is null || module is null) return;
+
+        var fileName = await module.InvokeAsync<string?>("captureScreenshot", currentVideo.Id);
+        _ = ShowToastAsync(fileName is null
+            ? "Screenshot failed. Wait for the video to load and try again."
+            : $"Screenshot saved to {Options.Value.ScreenshotsFolderName}");
+    }
+
+    // ------------------------------------------------------------ JS -> .NET callbacks
+
+    /// <summary>Raised once by the browser when playback passes the "watched" threshold.</summary>
+    [JSInvokable]
+    public async Task OnWatchThresholdReached(string videoId)
+    {
+        await MarkWatched(videoId);
+        StateHasChanged();
+    }
+
+    [JSInvokable]
+    public async Task OnShortcut(string action)
+    {
+        switch (action)
+        {
+            case "next": PlayRandomNext(); break;
+            case "theater": ToggleTheaterMode(); break;
+            case "screenshot": await CaptureScreenshot(); break;
+        }
+        StateHasChanged();
+    }
+
+    // ------------------------------------------------------------ helpers
+
+    private async Task ShowToastAsync(string message)
+    {
+        toastCts?.Cancel();
+        toastCts?.Dispose();
+        var cts = toastCts = new CancellationTokenSource();
+
+        toast = message;
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            await Task.Delay(2500, cts.Token);
+            toast = null;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (OperationCanceledException)
+        {
+            // A newer toast replaced this one.
+        }
+    }
+
+    private static string FormatSize(long bytes)
+    {
+        string[] units = ["B", "KB", "MB", "GB", "TB"];
+        double size = bytes;
+        var unit = 0;
+        while (size >= 1024 && unit < units.Length - 1)
+        {
+            size /= 1024;
+            unit++;
+        }
+        return $"{size:0.##} {units[unit]}";
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        toastCts?.Cancel();
+        toastCts?.Dispose();
+
+        try
+        {
+            if (module is not null)
+            {
+                await module.InvokeVoidAsync("dispose");
+                await module.DisposeAsync();
+            }
+        }
+        catch (JSDisconnectedException)
+        {
+            // Browser tab already closed - nothing to clean up.
+        }
+
+        selfRef?.Dispose();
+    }
+}
