@@ -1,6 +1,6 @@
 # 🎬 My Local Streamer - TubeVault
 
-A self-hosted, YouTube-style video streamer for your local media collection. Point it at a folder, press F5, and browse your videos in a modern web UI, with no cloud hosting or third-party media server.
+My Local Streamer (aka TubeVault) is a self-hosted, YouTube-style video streamer for your local media collection. Point it at a folder, press F5, and browse your videos in a modern web UI, with no cloud hosting or third-party media server.
 
 Built with **ASP.NET Core Blazor Web App (Interactive Server)** on **.NET 10**.
 
