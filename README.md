@@ -4,8 +4,8 @@ Local video streamer built with ASP.NET Core Blazor Web App (Interactive Server)
 
 ## Run
 1. Open `MyLocalStreamer.sln` in Visual Studio 2026 (or VS 2022 with the .NET 10 SDK installed).
-2. Press F5. On first start a `LocalMedia` folder is created next to the project file
-   (`Selected/` and `Screenshots/` are created inside it). Drop videos into `LocalMedia`, then press **⟳ Rescan**.
+2. Press F5. On first start, a `LocalMedia` folder is created in the project folder (if not already there) and other sub folders
+   (`Selected/` and `Screenshots/`) are created inside it. Drop videos into `LocalMedia`, then press **⟳ Rescan**.
 
 ## Configuration (`appsettings.json` → `Media`)
 | Key | Default | Meaning |
