@@ -1,60 +1,114 @@
-# My Local Streamer - MomoduDS
+# 🎬 My Local Streamer
 
-Local video streamer built with ASP.NET Core Blazor Web App (Interactive Server), .NET 10.
+A self-hosted, YouTube-style video streamer for your local media collection. Point it at a folder, press F5, and browse your videos in a modern web UI, with no cloud hosting or third-party media server.
 
-What The Application Is
-​It is a self-hosted, YouTube-style media streaming web application built entirely using .NET (Interactive Server render mode). It is specifically designed to run locally on your machine, instantly scanning a designated local folder (LocalMedia) to transform your video collection into a polished, modern web streaming center without needing cloud hosting or third-party media servers.
-​Key Features & Capabilities
-​1. YouTube-Style Dashboard & Responsive UI
-​Thumbnail Grid Sidebar: Displays all discovered videos (.mp4, .mkv, .webm, .mov) in a clean, scrollable sidebar complete with file sizes and title metadata.
-​Inline Hover Previews: Hovering your mouse over any video thumbnail triggers a muted, looping mini-video preview card, letting you preview content instantly before clicking.
-​Theater Mode Toggle: Expand the video viewer to occupy a larger screen area (Theater Mode) or toggle full screen instantly.
-​Dual Theme Support: Includes a built-in Dark / Light Mode toggle that remembers your preference using browser storage (localStorage).
-​2. Advanced Custom Video Player Controls
-​Seamless HTTP Range Streaming: Powered by a custom backend API controller (StreamController) that supports HTTP Range requests. This allows you to scrub, drag, or skip through multi-gigabyte video timelines instantly without lagging or high memory usage.
-​Global Keyboard Shortcuts:
-​Spacebar: Play / Pause (smart-filtered so typing in search boxes doesn't trigger it).
-​F: Toggle Fullscreen.
-​Right / Left Arrows: Skip forward or backward by 5 seconds.
-​3. Smart Watch History & Filtering
-​Watched Stickers: Automatically tracks your viewing progress (stamping a video as "Watched" once it plays past 15 seconds or finishes). Watched items receive a clean ✓ WATCHED badge and dimmed overlay.
-​Library Filters: Filter your sidebar instantly using YouTube-style pills: All, Unwatched, or Watched.
-​Instant Search Bar: Filter videos in real-time by typing filenames.
-​4. The "Select & Next" Quick-Action Workflow
-​A prominent ⭐ Select & Next button sits right next to the player for sorting exceptional videos.
-​Clicking it instantly triggers a safe background task that:
-​1. Picks and loads a random unwatched video into the player first (preventing file locks).
-​2. Safely relocates the old video file into a special subfolder called LocalMedia/Selected.
-​5. Server-Side Screenshot Capture
-​Clicking the 📷 Screenshot button captures the exact frame currently playing on screen, converts it via HTML5 canvas, and automatically saves a .png file directly into your server's LocalMedia/Screenshots folder.
-​Displays a sleek, floating 1-second toast notification confirming the save action.
-​How It Works Under the Hood
-​1. Single-Project Server Architecture: Built on a straightforward single-project .NET setup using interactive server rendering, giving the application direct, high-speed access to your local machine's file system via standard C# libraries (System.IO).
-​2. Service Layer (VideoService.cs):
-​Scans your LocalMedia directory upon startup.
-​Maintains persistent watch history records in a local JSON file (watch-history.json).
-​Handles asynchronous file moves and random sequence selection.
-​3. JS Interop Bridge (app.js): Connects browser-side events (keyboard shortcuts, video dimensions, canvas frame extractions) directly to your C# Blazor component methods using asynchronous invocation (JSInvokable).
+Built with **ASP.NET Core Blazor Web App (Interactive Server)** on **.NET 10**.
 
-## Run
-1. Open `MyLocalStreamer.sln` in Visual Studio 2026 (or VS 2022 with the .NET 10 SDK installed).
-2. Press F5. On first start, a `LocalMedia` folder is created in the project folder (if not already there) and other sub folders
-   (`Selected/` and `Screenshots/`) are created inside it. Drop videos into `LocalMedia`, then press **⟳ Rescan**.
+![.NET 10](https://img.shields.io/badge/.NET-10-512BD4)
+![Blazor](https://img.shields.io/badge/Blazor-Interactive%20Server-5C2D91)
+![Platform](https://img.shields.io/badge/runs-locally-brightgreen)
 
-## Configuration (`appsettings.json` → `Media`)
-| Key | Default | Meaning |
+---
+
+## ✨ Features
+
+### Dashboard and UI
+- **Thumbnail sidebar**: lists every discovered video (`.mp4`, `.mkv`, `.webm`, `.mov`) with title and file size.
+- **Hover previews**: hover a thumbnail to see a muted, looping mini-preview.
+- **Theater mode** and **fullscreen** toggles.
+- **Dark / Light theme**, remembered in browser `localStorage`.
+
+### Player
+- **HTTP Range streaming** via a custom `StreamController`, so you can scrub through multi-gigabyte files instantly with low memory use.
+- **Keyboard shortcuts** (see [below](#-keyboard-shortcuts)), smart-filtered so typing in the search box never triggers them.
+
+### Watch history and filtering
+- **Watched badge**: a video is marked `✓ WATCHED` (and dimmed) once it plays past a configurable threshold (default 15 s) or finishes.
+- **Filter pills**: All, Unwatched, Watched.
+- **Instant search**: filter by filename as you type.
+- History is saved to a local `watch-history.json`.
+
+### ⭐ Select & Next
+A one-click workflow for curating your favourites. It:
+1. Loads a random unwatched video into the player first (avoids file locks).
+2. Moves the previous video into `LocalMedia/Selected`.
+
+### 📷 Screenshot capture
+Grabs the current frame through an HTML5 canvas and saves it as a `.png` in `LocalMedia/Screenshots`, with a brief toast confirming the save.
+
+---
+
+## 🚀 Getting Started
+
+**Prerequisites:** Visual Studio 2026 (or VS 2022 with the .NET 10 SDK).
+
+1. Open `MyLocalStreamer.sln`.
+2. Press **F5**.
+3. On first run, a `LocalMedia` folder is created in the project folder, along with `Selected/` and `Screenshots/` inside it.
+4. Drop your videos into `LocalMedia` and click **⟳ Rescan**.
+
+---
+
+## ⚙️ Configuration
+
+Settings live in `appsettings.json` under the `Media` section:
+
+| Key | Default | Description |
 |---|---|---|
-| `LibraryPath` | `LocalMedia` | Folder to scan. Relative to the project, or an absolute path such as `D:\Videos`. |
-| `SelectedFolderName` | `Selected` | Sub-folder that "Select & Next" moves files into. |
-| `ScreenshotsFolderName` | `Screenshots` | Sub-folder for PNG screenshots. |
+| `LibraryPath` | `LocalMedia` | Folder to scan. Relative to the project, or absolute (e.g. `D:\Videos`). |
+| `SelectedFolderName` | `Selected` | Sub-folder that **Select & Next** moves files into. |
+| `ScreenshotsFolderName` | `Screenshots` | Sub-folder where PNG screenshots are saved. |
 | `WatchedAfterSeconds` | `15` | Playback time after which a video counts as watched. |
 
-## Keyboard shortcuts
-Space play/pause · ←/→ seek 5s · F fullscreen · M mute · N random next · T theater mode · S screenshot
+Example:
 
-## Watching from other devices
-Use the **LAN (other devices)** launch profile (listens on `http://0.0.0.0:5080`) and allow port 5080 in Windows Firewall.
-There is no authentication - only use it on a network you trust.
+```json
+{
+  "Media": {
+    "LibraryPath": "D:\\Videos",
+    "SelectedFolderName": "Selected",
+    "ScreenshotsFolderName": "Screenshots",
+    "WatchedAfterSeconds": 15
+  }
+}
+```
 
-## Notes
-- Browsers play MP4 (H.264/AAC) and WebM reliably. `.mkv` / `.mov` only play if the codecs inside are browser-supported.
+---
+
+## ⌨️ Keyboard Shortcuts
+
+| Key | Action |
+|---|---|
+| `Space` | Play / Pause |
+| `←` / `→` | Seek back / forward 5 s |
+| `F` | Fullscreen |
+| `M` | Mute |
+| `N` | Random next video |
+| `T` | Theater mode |
+| `S` | Screenshot |
+
+---
+
+## 📱 Watching From Other Devices
+
+1. Launch with the **LAN (other devices)** profile, which listens on `http://0.0.0.0:5080`.
+2. Allow port **5080** through Windows Firewall.
+3. Open `http://<your-pc-ip>:5080` from another device on the same network.
+
+> ⚠️ **There is no authentication.** Only use this on a network you trust.
+
+---
+
+## 🧱 How It Works
+
+- **Single-project architecture**: Blazor Interactive Server gives components direct access to the file system through `System.IO`.
+- **`VideoService.cs`** scans the library on startup, persists watch history to `watch-history.json`, and handles async file moves and random selection.
+- **`StreamController`** serves video files with HTTP Range support.
+- **`app.js`** is the JS interop bridge. It forwards keyboard shortcuts, video dimensions and canvas frame captures to Blazor components through `[JSInvokable]` methods.
+
+---
+
+## 📝 Notes
+
+- Browsers reliably play **MP4 (H.264/AAC)** and **WebM**. `.mkv` and `.mov` files only play if their internal codecs are browser-supported.
+- Moved files and screenshots stay on your machine; nothing is uploaded anywhere.
